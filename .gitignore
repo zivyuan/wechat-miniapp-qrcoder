@@ -1,0 +1,5 @@
+.mp-token
+config.json
+output/*.jpg
+output/*.png
+qrcodes.xlsx

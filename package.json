@@ -20,5 +20,10 @@
   "bugs": {
     "url": "https://github.com/zivyuan/wechat-miniapp-qrcoder/issues"
   },
-  "homepage": "https://github.com/zivyuan/wechat-miniapp-qrcoder#readme"
+  "homepage": "https://github.com/zivyuan/wechat-miniapp-qrcoder#readme",
+  "dependencies": {
+    "request": "^2.88.2",
+    "sleep": "^6.3.0",
+    "xlsx": "^0.16.9"
+  }
 }

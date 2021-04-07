@@ -1,0 +1,13 @@
+{
+    // 小程序 appId
+    "appid": "wxo0o0oo0o0oo0o0o",
+    // 小程序 appSecret
+    "secret": "o0o0oo0o0oo0o0oo0o0oo0o0oo0o0oo0o0o",
+    // 二维码宽度
+    "width": 400,
+    // 小程序链接参数名称列表
+    // 参数名称的[数量]与[顺序]和Excel模板(qrcodes.tpl.xlsx)里表头要一致
+    // 如果两边不一致, 手动调整到数量,顺序一至即可
+    // Excel里表头的参数名不必与json配置里的一样
+    "fields": ["store", "store_p", "store_c"]
+}

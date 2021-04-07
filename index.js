@@ -1,24 +1,36 @@
-#!/usr/local/bin/node
-
+/**
+ * 批量生成小程序参数二维码
+ *
+ * 使用说明:
+ * 1. 复制 config.tpl.json, 并改名为 config.json. 根据文件里的说明做好配置
+ * 2. 复制 qrcodes.tpl.xlsx, 并改名为 qrcodes.xlsx. 将小程序链接参数按格式
+ *    填好各参数
+ * 3. node index.js
+ */
 const fs = require('fs');
 const path = require('path');
 const request = require('request');
+const { sleep, msleep } = require('sleep');
+const XLSX = require('xlsx');
 
-var wxConf = {
+const wxConf = {
     grantType: 'client_credential',
-    appid: 'wxca6820724388eeaf', //wx_conf.appId,
-    secret: '11760cd2d0f39ea98823b9a6b8c95da1', //wx_conf.appSecret
+    appid: '--appid-required--', //wx_conf.appId,
+    secret: '--secret-required--', //wx_conf.appSecret
+}
+
+function loadConfig() {
+    let json = fs.readFileSync('config.json', 'utf-8')
+    json = json.replace(/\/\/.*[\r\n]/g, '')
+    const conf = JSON.parse(json)
+    Object.assign(wxConf, conf)
+    return wxConf
 }
 
 function getToken(appid, appsec, type = 'client_credential') {
-    const file = 'mp-token'
+    const file = '.mp-token'
 
     return new Promise((resolve, reject) => {
-        let token = {
-            access_token: '',
-            expires_in: 7200,
-            last_update: 0
-        }
         if (fs.existsSync(file)) {
             // Load token from cache
             let data = fs.readFileSync(file, 'utf-8')
@@ -26,7 +38,7 @@ function getToken(appid, appsec, type = 'client_credential') {
             const diff = (new Date().getTime() / 1000) - token_cache.last_update
             const mark = token_cache.expires_in * .9
             if (diff < mark) {
-                console.log('get token from cache', token)
+                Object.assign(wxConf, token_cache)
                 resolve(token_cache)
                 return
             }
@@ -40,6 +52,7 @@ function getToken(appid, appsec, type = 'client_credential') {
                 let token = JSON.parse(body)
                 token.last_update = (new Date().getTime() / 1000)
                 fs.writeFileSync(file, JSON.stringify(token))
+                Object.assign(wxConf, token)
                 resolve(token)
             } else {
                 console.log(err);
@@ -50,7 +63,7 @@ function getToken(appid, appsec, type = 'client_credential') {
 }
 
 
-function getQrcode(token, path, params) {
+function getQrcode(token, id, path, params) {
     return new Promise((resolve, reject) => {
         const api = `https://api.weixin.qq.com/wxa/getwxacode?access_token=${token}`
         const query = Object.keys(params).map(key => {
@@ -61,10 +74,10 @@ function getQrcode(token, path, params) {
             // Mini app launch path
             path: `${path}?${query.join('&')}`,
             // Qrcode size
-            width: 400,
+            width: wxConf.width,
         }
 
-        filename = "./aaa.jpg"
+        filename = `./output/${id}.jpg`
 
         request({
             method: 'POST',
@@ -76,7 +89,7 @@ function getQrcode(token, path, params) {
                 return
             }
             resolve({
-                filename,
+                filename: `./output/${id}.jpg`,
                 body: res.body
             })
         }).pipe(fs.createWriteStream(filename, {
@@ -85,34 +98,63 @@ function getQrcode(token, path, params) {
     })
 }
 
-
-getToken(wxConf.appid, wxConf.secret, wxConf.grantType)
-    .then(token => {
-        getQrcode(token.access_token, 'pages/live/live', {
-                store: '上海门店上海门店上海门店',
-                store_p: '内蒙',
-                store_c: '刘刘哈尔刘刘哈尔刘刘哈尔'
-            })
-            .then(res => {
-                console.log('QR loaded')
-                // console.log(res)
-                if (res.errmsg) {
-                    console.log(res)
-                    return
-                }
-
-                // const fd = fs.openSync('qrcode.png', 'w+')
-                // fs.writeSync(fd, res)
-                fs.writeFileSync('qrimg.jpg', res, 'binary')
-            })
-            .catch(err => {
-                console.log('load qr error', err)
-            })
-    })
-    .catch(err => {
-        console.log('token load error', err)
-    });
+function generateQR(id, path, query) {
+    getToken(wxConf.appid, wxConf.secret, wxConf.grantType)
+        .then(token => {
+            getQrcode(token.access_token, id, path, query)
+                .then(res => {
+                    // console.log('QR generated: ', res.filename)
+                })
+                .catch(err => {
+                    console.log('load qr error', err)
+                })
+        })
+        .catch(err => {
+            console.log('token load error', err)
+        });
+}
 
 
-// const img = fs.readFileSync('qrimg.jpg')
-// console.log(img)
+const conf = loadConfig()
+
+const wb = XLSX.readFile('qrcodes.xlsx')
+const sheet = wb.Sheets[wb.SheetNames[0]]
+let curRow = 2
+const fields = wxConf.fields
+const fieldTotal = wxConf.fields.length
+while (curRow > 0) {
+    qrinfo = {}
+    for (let curCol = 0; curCol < fieldTotal; curCol++) {
+        cellId = String.fromCharCode(65 + curCol) + curRow
+        cell = sheet[cellId]
+
+        if (curCol === 0 && (!cell || !cell.v)) {
+            curRow = -1
+            qrinfo = null
+            break;
+        }
+
+        qrinfo[fields[curCol]] = cell.v
+        if (curCol === 0) {
+            qrinfo['i__d'] = cell.v
+        }
+    }
+    curRow ++
+
+    if (!qrinfo) {
+        continue
+    }
+
+    let id = qrinfo.i__d
+    delete qrinfo.i__d
+
+    console.log('generate qrcode for ', id)
+    // console.log(qrinfo)
+    generateQR(id, wxConf.path, qrinfo)
+
+    msleep(100)
+}
+
+// Wait for image download
+msleep(1500)
+console.log('Miniapp QRCode generate completed.')
